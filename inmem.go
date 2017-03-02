@@ -1,4 +1,5 @@
-// Package inmem provides an in memory LRU cache with TTL support.
+// Package inmem copies the Cache interface and and a modified cache
+// type from github.com/facebookgo/inmem.
 package inmem
 
 import (
@@ -9,23 +10,23 @@ import (
 
 // Cache of things.
 type Cache interface {
-	Add(key, value interface{}, expiresAt time.Time)
-	Get(key interface{}) (interface{}, bool)
-	Remove(key interface{})
+	Add(key, value string, expiresAt time.Time)
+	Get(key string) (string, bool)
+	Remove(key string)
 	Len() int
 }
 
-// cache implements a non-thread safe fixed size cache.
+// cache implements a non-thread safe fixed size string cache.
 type cache struct {
 	size  int
 	lru   *list.List
-	items map[interface{}]*list.Element
+	items map[string]*list.Element
 }
 
-// entry in the cache.
+// entry is a string key/value entry in the cache.
 type entry struct {
-	key       interface{}
-	value     interface{}
+	key       string
+	value     string
 	expiresAt time.Time
 }
 
@@ -33,16 +34,16 @@ type entry struct {
 // concurrent use. If will panic if size is not a positive integer.
 func NewUnlocked(size int) Cache {
 	if size <= 0 {
-		panic("inmem: must provide a positive size")
+		panic("cache: must provide a positive size")
 	}
 	return &cache{
 		size:  size,
 		lru:   list.New(),
-		items: make(map[interface{}]*list.Element),
+		items: make(map[string]*list.Element),
 	}
 }
 
-func (c *cache) Add(key, value interface{}, expiresAt time.Time) {
+func (c *cache) Add(key, value string, expiresAt time.Time) {
 	if ent, ok := c.items[key]; ok {
 		// update existing entry
 		c.lru.MoveToFront(ent)
@@ -68,7 +69,7 @@ func (c *cache) Add(key, value interface{}, expiresAt time.Time) {
 	}
 }
 
-func (c *cache) Get(key interface{}) (interface{}, bool) {
+func (c *cache) Get(key string) (string, bool) {
 	if ent, ok := c.items[key]; ok {
 		v := ent.Value.(*entry)
 
@@ -81,10 +82,10 @@ func (c *cache) Get(key interface{}) (interface{}, bool) {
 		// ttl expired
 		c.removeElement(ent)
 	}
-	return nil, false
+	return "", false
 }
 
-func (c *cache) Remove(key interface{}) {
+func (c *cache) Remove(key string) {
 	if ent, ok := c.items[key]; ok {
 		c.removeElement(ent)
 	}
@@ -101,48 +102,48 @@ func (c *cache) removeElement(e *list.Element) {
 	delete(c.items, kv.key)
 }
 
-type lockedCache struct {
+type lockedStringCache struct {
 	c cache
 	m sync.Mutex
 }
 
-// NewLocked constructs a new Cache of the given size that is safe for
-// concurrent use. If will panic if size is not a positive integer.
-func NewLocked(size int) Cache {
+// NewLockedString constructs a new Cache of the given size that is safe for
+// concurrent use. It will panic if size is not a positive integer.
+func NewLockedString(size int) Cache {
 	if size <= 0 {
-		panic("inmem: must provide a positive size")
+		panic("cache: must provide a positive size")
 	}
-	return &lockedCache{
+	return &lockedStringCache{
 		c: cache{
 			size:  size,
 			lru:   list.New(),
-			items: make(map[interface{}]*list.Element),
+			items: make(map[string]*list.Element),
 		},
 	}
 }
 
-func (l *lockedCache) Add(key, value interface{}, expiresAt time.Time) {
-	l.m.Lock()
-	l.c.Add(key, value, expiresAt)
-	l.m.Unlock()
+func (ls *lockedStringCache) Add(key, value string, expiresAt time.Time) {
+	ls.m.Lock()
+	ls.c.Add(key, value, expiresAt)
+	ls.m.Unlock()
 }
 
-func (l *lockedCache) Get(key interface{}) (interface{}, bool) {
-	l.m.Lock()
-	v, f := l.c.Get(key)
-	l.m.Unlock()
+func (ls *lockedStringCache) Get(key string) (string, bool) {
+	ls.m.Lock()
+	v, f := ls.c.Get(key)
+	ls.m.Unlock()
 	return v, f
 }
 
-func (l *lockedCache) Remove(key interface{}) {
-	l.m.Lock()
-	l.c.Remove(key)
-	l.m.Unlock()
+func (ls *lockedStringCache) Remove(key string) {
+	ls.m.Lock()
+	ls.c.Remove(key)
+	ls.m.Unlock()
 }
 
-func (l *lockedCache) Len() int {
-	l.m.Lock()
-	c := l.c.Len()
-	l.m.Unlock()
+func (ls *lockedStringCache) Len() int {
+	ls.m.Lock()
+	c := ls.c.Len()
+	ls.m.Unlock()
 	return c
 }

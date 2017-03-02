@@ -1,18 +1,26 @@
 package inmem_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/facebookgo/ensure"
-	"github.com/facebookgo/inmem"
+	"github.com/magiccarpetsoftware/inmem"
 )
+
+func emptyString(t *testing.T, s string) {
+	if s != "" {
+		fmt.Printf("string not empty: %v", s)
+		t.Fail()
+	}
+}
 
 func testManyThings(t *testing.T, c inmem.Cache) {
 	const (
-		k  = 1
-		v1 = 2
-		v2 = 3
+		k  = "appts"
+		v1 = "https://newtest-appts.something-something.ops-is-awesome.com.au"
+		v2 = "https://prod-appts.something-something.ops-is-awesome.com.au"
 	)
 
 	// it's empty
@@ -21,7 +29,7 @@ func testManyThings(t *testing.T, c inmem.Cache) {
 	// not there to start with
 	actual, found := c.Get(k)
 	ensure.False(t, found)
-	ensure.Nil(t, actual)
+	emptyString(t, actual)
 
 	// add it
 	c.Add(k, v1, time.Now().Add(time.Hour))
@@ -51,7 +59,7 @@ func testManyThings(t *testing.T, c inmem.Cache) {
 	// not there any more
 	actual, found = c.Get(k)
 	ensure.False(t, found)
-	ensure.Nil(t, actual)
+	emptyString(t, actual)
 
 	// it's empty again
 	ensure.DeepEqual(t, c.Len(), 0)
@@ -62,36 +70,36 @@ func TestManyThingsUnlocked(t *testing.T) {
 }
 
 func TestManyThingsLocked(t *testing.T) {
-	testManyThings(t, inmem.NewLocked(10))
+	testManyThings(t, inmem.NewLockedString(10))
 }
 
 func TestPanicNewUnlockedSizeZero(t *testing.T) {
-	defer ensure.PanicDeepEqual(t, "inmem: must provide a positive size")
+	defer ensure.PanicDeepEqual(t, "cache: must provide a positive size")
 	_ = inmem.NewUnlocked(0)
 }
 
 func TestPanicNewLockedSizeZero(t *testing.T) {
-	defer ensure.PanicDeepEqual(t, "inmem: must provide a positive size")
-	_ = inmem.NewLocked(0)
+	defer ensure.PanicDeepEqual(t, "cache: must provide a positive size")
+	_ = inmem.NewLockedString(0)
 }
 
 func TestCacheSize(t *testing.T) {
 	c := inmem.NewUnlocked(2)
 	e := time.Now().Add(time.Hour)
-	c.Add(1, 1, e)
-	c.Add(2, 2, e)
-	c.Add(3, 3, e)
+	c.Add("1", "1", e)
+	c.Add("2", "2", e)
+	c.Add("3", "3", e)
 	ensure.DeepEqual(t, c.Len(), 2)
-	_, found := c.Get(1)
+	_, found := c.Get("1")
 	ensure.False(t, found)
 }
 
 func TestTTLExpired(t *testing.T) {
 	c := inmem.NewUnlocked(2)
 	e := time.Now().Add(-time.Hour)
-	c.Add(1, 1, e)
+	c.Add("1", "1", e)
 	ensure.DeepEqual(t, c.Len(), 1)
-	_, found := c.Get(1)
+	_, found := c.Get("1")
 	ensure.False(t, found)
 	ensure.DeepEqual(t, c.Len(), 0)
 }
