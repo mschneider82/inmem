@@ -70,7 +70,11 @@ func TestManyThingsUnlocked(t *testing.T) {
 }
 
 func TestManyThingsLocked(t *testing.T) {
-	testManyThings(t, inmem.NewLockedString(10))
+	c, err := inmem.NewLockedString(10)
+	if err != nil {
+		t.Errorf("error initializing locked string cache: %v", err)
+	}
+	testManyThings(t, c)
 }
 
 func TestPanicNewUnlockedSizeZero(t *testing.T) {
@@ -79,8 +83,10 @@ func TestPanicNewUnlockedSizeZero(t *testing.T) {
 }
 
 func TestPanicNewLockedSizeZero(t *testing.T) {
-	defer ensure.PanicDeepEqual(t, "cache: must provide a positive size")
-	_ = inmem.NewLockedString(0)
+	_, err := inmem.NewLockedString(0)
+	if err == nil {
+		t.Fail()
+	}
 }
 
 func TestCacheSize(t *testing.T) {

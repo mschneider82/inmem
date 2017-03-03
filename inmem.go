@@ -4,6 +4,7 @@ package inmem
 
 import (
 	"container/list"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -109,9 +110,9 @@ type lockedStringCache struct {
 
 // NewLockedString constructs a new Cache of the given size that is safe for
 // concurrent use. It will panic if size is not a positive integer.
-func NewLockedString(size int) Cache {
+func NewLockedString(size int) (Cache, error) {
 	if size <= 0 {
-		panic("cache: must provide a positive size")
+		return &lockedStringCache{}, fmt.Errorf("inmem: size must be a positive integer: received: %v", size)
 	}
 	return &lockedStringCache{
 		c: cache{
@@ -119,7 +120,7 @@ func NewLockedString(size int) Cache {
 			lru:   list.New(),
 			items: make(map[string]*list.Element),
 		},
-	}
+	}, nil
 }
 
 func (ls *lockedStringCache) Add(key, value string, expiresAt time.Time) {
