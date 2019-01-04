@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ccsnake/inmem"
 	"github.com/facebookgo/ensure"
-	"github.com/facebookgo/inmem"
 )
 
 func testManyThings(t *testing.T, c inmem.Cache) {
@@ -24,7 +24,7 @@ func testManyThings(t *testing.T, c inmem.Cache) {
 	ensure.Nil(t, actual)
 
 	// add it
-	c.Add(k, v1, time.Now().Add(time.Hour))
+	c.Add(k, v1)
 
 	// now it's there
 	actual, found = c.Get(k)
@@ -35,7 +35,7 @@ func testManyThings(t *testing.T, c inmem.Cache) {
 	ensure.DeepEqual(t, c.Len(), 1)
 
 	// replace it
-	c.Add(k, v2, time.Now().Add(time.Hour))
+	c.Add(k, v2)
 
 	// now find the new value
 	actual, found = c.Get(k)
@@ -58,38 +58,36 @@ func testManyThings(t *testing.T, c inmem.Cache) {
 }
 
 func TestManyThingsUnlocked(t *testing.T) {
-	testManyThings(t, inmem.NewUnlocked(10))
+	testManyThings(t, inmem.NewUnlocked(10, time.Hour, false))
 }
 
 func TestManyThingsLocked(t *testing.T) {
-	testManyThings(t, inmem.NewLocked(10))
+	testManyThings(t, inmem.NewLocked(10, time.Hour, false))
 }
 
 func TestPanicNewUnlockedSizeZero(t *testing.T) {
 	defer ensure.PanicDeepEqual(t, "inmem: must provide a positive size")
-	_ = inmem.NewUnlocked(0)
+	_ = inmem.NewUnlocked(0, time.Hour, false)
 }
 
 func TestPanicNewLockedSizeZero(t *testing.T) {
 	defer ensure.PanicDeepEqual(t, "inmem: must provide a positive size")
-	_ = inmem.NewLocked(0)
+	_ = inmem.NewLocked(0, time.Hour, false)
 }
 
 func TestCacheSize(t *testing.T) {
-	c := inmem.NewUnlocked(2)
-	e := time.Now().Add(time.Hour)
-	c.Add(1, 1, e)
-	c.Add(2, 2, e)
-	c.Add(3, 3, e)
+	c := inmem.NewUnlocked(2, time.Hour, false)
+	c.Add(1, 1)
+	c.Add(2, 2)
+	c.Add(3, 3)
 	ensure.DeepEqual(t, c.Len(), 2)
 	_, found := c.Get(1)
 	ensure.False(t, found)
 }
 
 func TestTTLExpired(t *testing.T) {
-	c := inmem.NewUnlocked(2)
-	e := time.Now().Add(-time.Hour)
-	c.Add(1, 1, e)
+	c := inmem.NewUnlocked(2,-time.Hour,false)
+	c.Add(1, 1)
 	ensure.DeepEqual(t, c.Len(), 1)
 	_, found := c.Get(1)
 	ensure.False(t, found)
