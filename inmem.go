@@ -9,17 +9,25 @@ import (
 
 // Cache of things.
 type Cache interface {
-	Add(key, value interface{}, expiresAt time.Time)
+	Add(key, value interface{})
 	Get(key interface{}) (interface{}, bool)
 	Remove(key interface{})
+	Purge()
 	Len() int
 }
 
 // cache implements a non-thread safe fixed size cache.
 type cache struct {
-	size  int
-	lru   *list.List
-	items map[interface{}]*list.Element
+	refreshAfterAccess bool
+	ttl                time.Duration
+	size               int
+	lru                *list.List
+	items              map[interface{}]*list.Element
+}
+
+func (c *cache) Purge() {
+	c.lru = list.New()
+	c.items = make(map[interface{}]*list.Element)
 }
 
 // entry in the cache.
@@ -31,18 +39,21 @@ type entry struct {
 
 // NewUnlocked constructs a new Cache of the given size that is not safe for
 // concurrent use. If will panic if size is not a positive integer.
-func NewUnlocked(size int) Cache {
+func NewUnlocked(size int, ttl time.Duration, refreshAfterAccess bool) Cache {
 	if size <= 0 {
 		panic("inmem: must provide a positive size")
 	}
 	return &cache{
-		size:  size,
-		lru:   list.New(),
-		items: make(map[interface{}]*list.Element),
+		refreshAfterAccess: refreshAfterAccess,
+		ttl:                ttl,
+		size:               size,
+		lru:                list.New(),
+		items:              make(map[interface{}]*list.Element),
 	}
 }
 
-func (c *cache) Add(key, value interface{}, expiresAt time.Time) {
+func (c *cache) Add(key, value interface{}) {
+	expiresAt := time.Now().Add(c.ttl)
 	if ent, ok := c.items[key]; ok {
 		// update existing entry
 		c.lru.MoveToFront(ent)
@@ -75,6 +86,11 @@ func (c *cache) Get(key interface{}) (interface{}, bool) {
 		if v.expiresAt.After(time.Now()) {
 			// found good entry
 			c.lru.MoveToFront(ent)
+
+			// adjust expiresAt
+			if c.refreshAfterAccess {
+				v.expiresAt = time.Now().Add(c.ttl)
+			}
 			return v.value, true
 		}
 
@@ -106,24 +122,32 @@ type lockedCache struct {
 	m sync.Mutex
 }
 
+func (l *lockedCache) Purge() {
+	l.m.Lock()
+	l.c.Purge()
+	l.m.Unlock()
+}
+
 // NewLocked constructs a new Cache of the given size that is safe for
 // concurrent use. If will panic if size is not a positive integer.
-func NewLocked(size int) Cache {
+func NewLocked(size int, ttl time.Duration, refreshAfterAccess bool) Cache {
 	if size <= 0 {
 		panic("inmem: must provide a positive size")
 	}
 	return &lockedCache{
 		c: cache{
-			size:  size,
-			lru:   list.New(),
-			items: make(map[interface{}]*list.Element),
+			refreshAfterAccess: refreshAfterAccess,
+			ttl:                ttl,
+			size:               size,
+			lru:                list.New(),
+			items:              make(map[interface{}]*list.Element),
 		},
 	}
 }
 
-func (l *lockedCache) Add(key, value interface{}, expiresAt time.Time) {
+func (l *lockedCache) Add(key, value interface{}) {
 	l.m.Lock()
-	l.c.Add(key, value, expiresAt)
+	l.c.Add(key, value)
 	l.m.Unlock()
 }
 
