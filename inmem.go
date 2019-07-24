@@ -97,7 +97,7 @@ func (c *cache) Get(key string) (string, bool) {
 		// ttl expired
 		c.removeElement(ent)
 	}
-	return nil, false
+	return "", false
 }
 
 func (c *cache) Remove(key string) {
