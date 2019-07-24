@@ -9,9 +9,9 @@ import (
 
 // Cache of things.
 type Cache interface {
-	Add(key, value interface{})
-	Get(key interface{}) (interface{}, bool)
-	Remove(key interface{})
+	Add(key, value string)
+	Get(key string) (string, bool)
+	Remove(key string)
 	Purge()
 	Len() int
 }
@@ -22,18 +22,18 @@ type cache struct {
 	ttl                time.Duration
 	size               int
 	lru                *list.List
-	items              map[interface{}]*list.Element
+	items              map[string]*list.Element
 }
 
 func (c *cache) Purge() {
 	c.lru = list.New()
-	c.items = make(map[interface{}]*list.Element)
+	c.items = make(map[string]*list.Element)
 }
 
 // entry in the cache.
 type entry struct {
-	key       interface{}
-	value     interface{}
+	key       string
+	value     string
 	expiresAt time.Time
 }
 
@@ -48,11 +48,11 @@ func NewUnlocked(size int, ttl time.Duration, refreshAfterAccess bool) Cache {
 		ttl:                ttl,
 		size:               size,
 		lru:                list.New(),
-		items:              make(map[interface{}]*list.Element),
+		items:              make(map[string]*list.Element),
 	}
 }
 
-func (c *cache) Add(key, value interface{}) {
+func (c *cache) Add(key, value string) {
 	expiresAt := time.Now().Add(c.ttl)
 	if ent, ok := c.items[key]; ok {
 		// update existing entry
@@ -79,7 +79,7 @@ func (c *cache) Add(key, value interface{}) {
 	}
 }
 
-func (c *cache) Get(key interface{}) (interface{}, bool) {
+func (c *cache) Get(key string) (string, bool) {
 	if ent, ok := c.items[key]; ok {
 		v := ent.Value.(*entry)
 
@@ -100,7 +100,7 @@ func (c *cache) Get(key interface{}) (interface{}, bool) {
 	return nil, false
 }
 
-func (c *cache) Remove(key interface{}) {
+func (c *cache) Remove(key string) {
 	if ent, ok := c.items[key]; ok {
 		c.removeElement(ent)
 	}
@@ -140,25 +140,25 @@ func NewLocked(size int, ttl time.Duration, refreshAfterAccess bool) Cache {
 			ttl:                ttl,
 			size:               size,
 			lru:                list.New(),
-			items:              make(map[interface{}]*list.Element),
+			items:              make(map[string]*list.Element),
 		},
 	}
 }
 
-func (l *lockedCache) Add(key, value interface{}) {
+func (l *lockedCache) Add(key, value string) {
 	l.m.Lock()
 	l.c.Add(key, value)
 	l.m.Unlock()
 }
 
-func (l *lockedCache) Get(key interface{}) (interface{}, bool) {
+func (l *lockedCache) Get(key string) (string, bool) {
 	l.m.Lock()
 	v, f := l.c.Get(key)
 	l.m.Unlock()
 	return v, f
 }
 
-func (l *lockedCache) Remove(key interface{}) {
+func (l *lockedCache) Remove(key string) {
 	l.m.Lock()
 	l.c.Remove(key)
 	l.m.Unlock()
